@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Historial de Báscula · VDC 360°</title>
+<style>
+  :root{
+    --bg:#f4f4f1;--card:#fff;--line:#e6e6e1;--line2:#efefea;--ink:#1c1c1a;--mut:#74746c;
+    --verde:#1f6b3f;--verde-bg:#e7f3ea;--rojo:#a8321f;--rojo-bg:#fbe9e7;--ambar:#8a5a00;--ambar-bg:#fdf3dc;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px}
+  header{background:#fff;border-bottom:1px solid var(--line)}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 16px}
+  .top{display:flex;align-items:center;gap:12px;height:64px}
+  .logo{width:36px;height:36px;border-radius:9px;background:var(--verde);color:#fff;display:grid;place-items:center;font-weight:700}
+  .top h1{font-size:15px;margin:0;font-weight:600}.top small{display:block;color:var(--mut);font-size:12px;font-weight:400}
+  .top a{margin-left:auto;color:var(--ink);text-decoration:none;border:1px solid var(--line);border-radius:10px;padding:7px 12px;font-size:13px;background:#fff}
+  .live{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--mut)}
+  .live i{width:8px;height:8px;border-radius:50%;background:#c9c9c2}.live.on i{background:var(--verde)}
+  .bar{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin:20px 0 14px}
+  .f{display:flex;flex-direction:column;gap:4px}
+  .f label{font-size:11.5px;color:var(--mut);text-transform:uppercase;letter-spacing:.05em}
+  .f input,.f select{height:38px;border:1px solid var(--line);border-radius:10px;padding:0 10px;font:inherit;background:#fff;color:var(--ink);min-width:0}
+  .f input[type=date]{width:160px}.f input.hh{width:92px}.f input.kg{width:120px}
+  .seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff;height:38px}
+  .seg button{border:0;background:none;padding:0 12px;font:inherit;font-size:13px;cursor:pointer;color:var(--ink)}
+  .seg button.act{background:var(--verde);color:#fff}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+  .kpi b{display:block;font-size:22px;font-weight:650;font-variant-numeric:tabular-nums}
+  .kpi span{font-size:12px;color:var(--mut)}
+  .kpi.rojo b{color:var(--rojo)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-bottom:24px}
+  table{width:100%;border-collapse:collapse}
+  th{font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);font-weight:500;text-align:left;padding:10px 14px;border-bottom:1px solid var(--line2);background:#fafaf8}
+  td{padding:10px 14px;border-bottom:1px solid var(--line2);vertical-align:top}
+  tr:last-child td{border-bottom:0}
+  tbody tr{cursor:pointer}tbody tr:hover td{background:#fafaf8}
+  .num{font-variant-numeric:tabular-nums;white-space:nowrap}
+  .peso{font-weight:650;font-size:15px}
+  .tag{display:inline-block;font-size:11.5px;font-weight:600;border-radius:6px;padding:2px 8px;white-space:nowrap}
+  .t-ok{background:var(--verde-bg);color:var(--verde)}.t-no{background:var(--rojo-bg);color:var(--rojo)}
+  .t-par{background:#f0f0ec;color:var(--mut)}.t-esp{background:var(--ambar-bg);color:var(--ambar)}
+  .t-man{background:var(--ambar-bg);color:var(--ambar)}
+  tr.parcial td{color:var(--mut)}tr.parcial .peso{font-weight:500;font-size:14px}
+  tr.sinnota td:first-child{box-shadow:inset 3px 0 0 var(--rojo)}
+  .det{font-size:13px;line-height:1.4}.det small{color:var(--mut)}
+  .vacio{padding:40px 16px;text-align:center;color:var(--mut);line-height:1.6}
+  .cerca{background:#fafaf8}
+  .cerca td{padding:8px 14px 14px}
+  .cerca h4{margin:4px 0 8px;font-size:12px;color:var(--mut);font-weight:500;text-transform:uppercase;letter-spacing:.05em}
+  .mini{width:100%;font-size:13px}.mini td{padding:5px 8px;border-bottom:1px solid var(--line2);cursor:default}
+  .nota{font-size:12px;color:var(--mut);margin:-6px 0 18px;line-height:1.5}
+  @media (max-width:720px){
+    .kpis{grid-template-columns:repeat(2,1fr)}
+    th.h-dur,td.h-dur{display:none}
+    .f input[type=date]{width:150px}
+    .live span{display:none}
+    thead{display:none}
+    tbody tr[data-id]{display:grid;grid-template-columns:auto 1fr auto;column-gap:4px;border-bottom:1px solid var(--line2)}
+    tbody tr[data-id] td{border-bottom:0}
+    tbody tr[data-id] td:nth-child(4){grid-column:1/-1;padding-top:0}
+    tbody tr[data-id] td:nth-child(4):empty{display:none}
+  }
+</style>
+</head>
+<body>
+<header><div class="wrap top">
+  <div class="logo">⚖</div>
+  <h1>Historial de Báscula<small>Pesos estables de la Torrey vs. notas a crédito</small></h1>
+  <span class="live" id="live"><i></i><span>Conectando…</span></span>
+  <a href="./" id="volver">← Central</a>
+</div></header>
+
+<main class="wrap">
+  <div class="bar">
+    <div class="f"><label for="fecha">Fecha</label><input type="date" id="fecha"></div>
+    <div class="f"><label for="desde">Desde</label><input class="hh" type="time" id="desde"></div>
+    <div class="f"><label for="hasta">Hasta</label><input class="hh" type="time" id="hasta"></div>
+    <div class="f"><label for="kg">Buscar kg</label><input class="kg" id="kg" inputmode="decimal" placeholder="ej. 27.3"></div>
+    <div class="f"><label>Mostrar</label>
+      <div class="seg" id="filtro">
+        <button type="button" data-f="todas" class="act">Todas</button>
+        <button type="button" data-f="sinnota">Sin nota</button>
+        <button type="button" data-f="manual">Nota sin báscula</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi"><b id="k-pes">—</b><span>Pesadas en báscula</span></div>
+    <div class="kpi"><b id="k-ok">—</b><span>Encontradas en nota</span></div>
+    <div class="kpi rojo"><b id="k-no">—</b><span>Sin nota · <span id="k-nokg">0</span> kg</span></div>
+    <div class="kpi"><b id="k-man">—</b><span>Renglones de nota sin pesada</span></div>
+  </div>
+  <p class="nota">Se guarda cada peso que se quedó quieto 1.5 s o más. Si se fue apilando producto, solo cuenta el último peso (los anteriores salen como “parcial”). Toca un renglón para ver qué se capturó en notas alrededor de esa hora.</p>
+
+  <div class="card"><table>
+    <thead id="thead"></thead>
+    <tbody id="tbody"><tr><td class="vacio" colspan="5">Cargando…</td></tr></tbody>
+  </table></div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+const SUPABASE_URL = "https://bjebybdqcqscouxlinfd.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJqZWJ5YmRxY3FzY291eGxpbmZkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzMjQ3MTksImV4cCI6MjA3MTkwMDcxOX0.mQgWtiYEyJTiF04pdcLv63SqPNrU1Iehws0vKqr82O0";
+const BASCULA = "torrey_1";
+const TZ = "America/Mexico_City";
+
+// Reglas para emparejar báscula ↔ nota
+const ANTES_MIN = 20;      // la pesada puede ser hasta 20 min antes del renglón de la nota
+const DESPUES_MIN = 3;     // o hasta 3 min después
+const TOL = kg => Math.max(1.0, kg * 0.02);   // diferencia aceptada (redondeo a kg enteros)
+const ESPERA_MIN = 10;     // una pesada reciente se marca "esperando nota" antes de "sin nota"
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const hhmmss = d => new Date(d).toLocaleTimeString("es-MX",{timeZone:TZ,hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false});
+const hhmm = d => new Date(d).toLocaleTimeString("es-MX",{timeZone:TZ,hour:"2-digit",minute:"2-digit",hour12:false});
+const kgf = n => Number(n).toLocaleString("es-MX",{minimumFractionDigits:2,maximumFractionDigits:2});
+const hoyMX = () => new Intl.DateTimeFormat("en-CA",{timeZone:TZ}).format(new Date());
+
+// Inicio/fin del día en México como instantes UTC (México ya no usa horario de verano: UTC-6)
+const rangoDia = f => [new Date(f+"T00:00:00-06:00"), new Date(f+"T24:00:00-06:00")];
+
+let pesadas = [], detalles = [], filtro = "todas", abierto = null;
+
+try { const p = new URLSearchParams(location.search); $("fecha").value = p.get("fecha") || hoyMX(); } catch(e){ $("fecha").value = hoyMX(); }
+
+async function cargar(){
+  const f = $("fecha").value || hoyMX();
+  const [a,b] = rangoDia(f);
+  const a2 = new Date(a.getTime() - 30*60e3), b2 = new Date(b.getTime() + 30*60e3);
+  const [r1, r2] = await Promise.all([
+    sb.from("bascula_historial").select("id,peso,estable_desde,duracion_s,tras_vacio")
+      .eq("bascula", BASCULA).gte("estable_desde", a2.toISOString()).lt("estable_desde", b2.toISOString())
+      .order("estable_desde").limit(5000),
+    sb.from("notas_detalle").select("id,producto,cantidad,piezas,created_at,notas_credito(folio,clientes(nombre))")
+      .gte("created_at", a2.toISOString()).lt("created_at", b2.toISOString())
+      .order("created_at").limit(5000)
+  ]);
+  const ok = !r1.error && !r2.error;
+  $("live").className = "live" + (ok ? " on" : "");
+  $("live").lastElementChild.textContent = ok ? "Actualizado " + hhmm(new Date()) : "Sin conexión";
+  if (!ok) return;
+  pesadas = r1.data.map(p => ({...p, t: +new Date(p.estable_desde), peso: +p.peso})).sort((x,y) => x.t - y.t);
+  detalles = r2.data.map(d => ({...d, t: +new Date(d.created_at), cantidad: +d.cantidad,
+    cliente: d.notas_credito?.clientes?.nombre || "(sin cliente)", folio: d.notas_credito?.folio || ""})).sort((x,y) => x.t - y.t);
+  emparejar(a.getTime(), b.getTime());
+  pintar();
+}
+
+function emparejar(diaA, diaB){
+  // 1) agrupar cargas: cada grupo empieza cuando la báscula estaba vacía
+  let g = -1;
+  pesadas.forEach(p => { if (p.tras_vacio || g < 0) g++; p.grupo = g; p.final = false; p.match = null; p.estado = null; });
+  for (let i = 0; i < pesadas.length; i++)
+    if (i === pesadas.length - 1 || pesadas[i+1].grupo !== pesadas[i].grupo) pesadas[i].final = true;
+  detalles.forEach(d => d.match = null);
+
+  const finales = pesadas.filter(p => p.final);
+  const enVentana = (p, d) => p.t >= d.t - ANTES_MIN*60e3 && p.t <= d.t + DESPUES_MIN*60e3;
+
+  // 2) un renglón de nota = una pesada (la más cercana en tiempo)
+  detalles.forEach(d => {
+    let mejor = null;
+    finales.forEach(p => {
+      if (p.match || !enVentana(p,d) || Math.abs(p.peso - d.cantidad) > TOL(d.cantidad)) return;
+      if (!mejor || Math.abs(p.t - d.t) < Math.abs(mejor.t - d.t)) mejor = p;
+    });
+    if (mejor){ mejor.match = [d]; d.match = [mejor]; }
+  });
+
+  // 3) un renglón de nota = suma de varias pesadas seguidas (2 a 8)
+  detalles.filter(d => !d.match).forEach(d => {
+    const libres = finales.filter(p => !p.match && enVentana(p,d));
+    let mejor = null;
+    for (let i = 0; i < libres.length; i++){
+      let s = 0;
+      for (let j = i; j < libres.length && j < i + 8; j++){
+        s += libres[j].peso;
+        if (j > i && Math.abs(s - d.cantidad) <= TOL(d.cantidad)){
+          const dist = Math.abs(libres[j].t - d.t);
+          if (!mejor || dist < mejor.dist) mejor = {ps: libres.slice(i, j+1), dist};
+        }
+        if (s > d.cantidad + TOL(d.cantidad)) break;
+      }
+    }
+    if (mejor){ mejor.ps.forEach(p => p.match = [d]); d.match = mejor.ps; }
+  });
+
+  // 4) estados
+  const ahora = Date.now();
+  pesadas.forEach(p => {
+    if (!p.final) p.estado = "parcial";
+    else if (p.match) p.estado = "ok";
+    else p.estado = (ahora - p.t < ESPERA_MIN*60e3) ? "esperando" : "sinnota";
+  });
+  // solo cuentan las del día elegido
+  pesadas = pesadas.filter(p => p.t >= diaA && p.t < diaB);
+  detalles = detalles.filter(d => d.t >= diaA && d.t < diaB);
+}
+
+function pasaFiltros(t, kg){
+  const f = $("fecha").value || hoyMX();
+  const de = $("desde").value, ha = $("hasta").value;
+  if (de && t < +new Date(`${f}T${de}:00-06:00`)) return false;
+  if (ha && t > +new Date(`${f}T${ha}:59-06:00`)) return false;
+  const q = parseFloat(($("kg").value || "").replace(",", "."));
+  if (!isNaN(q) && Math.abs(kg - q) > Math.max(0.5, q*0.02)) return false;
+  return true;
+}
+
+function pintar(){
+  const finales = pesadas.filter(p => p.final);
+  const sin = finales.filter(p => p.estado === "sinnota");
+  const manuales = detalles.filter(d => !d.match);
+  $("k-pes").textContent = finales.length;
+  $("k-ok").textContent = finales.filter(p => p.estado === "ok").length;
+  $("k-no").textContent = sin.length;
+  $("k-nokg").textContent = kgf(sin.reduce((s,p) => s + p.peso, 0));
+  $("k-man").textContent = manuales.length;
+
+  const body = $("tbody");
+  if (filtro === "manual"){
+    $("thead").innerHTML = `<tr><th>Hora</th><th class="num">Kg en nota</th><th>Cliente · producto</th><th>Folio</th></tr>`;
+    const rows = manuales.filter(d => pasaFiltros(d.t, d.cantidad)).reverse();
+    body.innerHTML = rows.length ? rows.map(d => `<tr>
+        <td class="num">${hhmmss(d.t)}</td>
+        <td class="num peso">${kgf(d.cantidad)}</td>
+        <td class="det">${esc(d.cliente)}<br><small>${esc(d.producto)}${d.piezas ? ` · ${d.piezas} pzas` : ""}</small></td>
+        <td class="num"><span class="tag t-man">${esc(d.folio)}</span></td></tr>`).join("")
+      : `<tr><td class="vacio" colspan="4">Todos los renglones de nota de este día tienen su pesada en báscula.</td></tr>`;
+    return;
+  }
+
+  $("thead").innerHTML = `<tr><th>Hora</th><th class="num">Peso</th><th>Estado</th><th>En nota</th><th class="h-dur num">Quieto</th></tr>`;
+  let rows = pesadas.filter(p => pasaFiltros(p.t, p.peso));
+  if (filtro === "sinnota") rows = rows.filter(p => p.estado === "sinnota" || p.estado === "esperando");
+  rows = rows.slice().reverse();
+  if (!rows.length){
+    const hayDatos = pesadas.length > 0;
+    body.innerHTML = `<tr><td class="vacio" colspan="5">${hayDatos ? "No hay pesadas con esos filtros." :
+      "No hay pesadas guardadas este día.<br>Revisa que <b>bascula_historial.py</b> esté abierto en la compu de la báscula."}</td></tr>`;
+    return;
+  }
+  const tags = {ok:'<span class="tag t-ok">En nota</span>', sinnota:'<span class="tag t-no">Sin nota</span>',
+    esperando:'<span class="tag t-esp">Esperando nota</span>', parcial:'<span class="tag t-par">Parcial</span>'};
+  body.innerHTML = rows.map(p => {
+    let enNota = "";
+    if (p.match){
+      const d = p.match[0];
+      const suma = d.match.length > 1 ? ` <small>(suma de ${d.match.length} pesadas = ${kgf(d.cantidad)} kg)</small>` : "";
+      enNota = `<div class="det">${esc(d.cliente)} · ${esc(d.producto)}<br><small>${esc(d.folio)} · ${kgf(d.cantidad)} kg · ${hhmm(d.t)}</small>${suma}</div>`;
+    } else if (p.estado === "parcial") enNota = `<small class="det">Se le siguió agregando producto</small>`;
+    const cls = p.estado === "parcial" ? "parcial" : p.estado === "sinnota" ? "sinnota" : "";
+    const fila = `<tr class="${cls}" data-id="${p.id}">
+      <td class="num">${hhmmss(p.t)}</td>
+      <td class="num peso">${kgf(p.peso)} kg</td>
+      <td>${tags[p.estado]}</td>
+      <td>${enNota}</td>
+      <td class="h-dur num">${p.duracion_s ?? ""} s</td></tr>`;
+    return fila + (abierto === p.id ? cercanas(p) : "");
+  }).join("");
+  body.querySelectorAll("tr[data-id]").forEach(tr => tr.onclick = () => {
+    const id = +tr.dataset.id; abierto = abierto === id ? null : id; pintar();
+  });
+}
+
+function cercanas(p){
+  const ds = detalles.filter(d => Math.abs(d.t - p.t) <= 15*60e3);
+  const filas = ds.length ? ds.map(d => `<tr>
+      <td class="num">${hhmmss(d.t)}</td><td>${esc(d.cliente)}</td><td>${esc(d.producto)}</td>
+      <td class="num">${kgf(d.cantidad)} kg${d.piezas ? ` · ${d.piezas} pzas` : ""}</td><td class="num">${esc(d.folio)}</td></tr>`).join("")
+    : `<tr><td colspan="5">No se capturó nada en notas 15 minutos antes ni después.</td></tr>`;
+  return `<tr class="cerca"><td colspan="5"><h4>Capturado en notas ±15 min de ${hhmm(p.t)}</h4>
+    <table class="mini">${filas}</table></td></tr>`;
+}
+
+$("filtro").querySelectorAll("button").forEach(b => b.onclick = () => {
+  filtro = b.dataset.f;
+  $("filtro").querySelectorAll("button").forEach(x => x.classList.toggle("act", x === b));
+  pintar();
+});
+$("fecha").onchange = () => { abierto = null; cargar(); };
+["desde","hasta","kg"].forEach(id => $(id).oninput = pintar);
+
+// En vivo: recarga cuando entra una pesada nueva o un renglón de nota
+let tR; const pronto = () => { clearTimeout(tR); tR = setTimeout(cargar, 800); };
+sb.channel("historial-bascula")
+  .on("postgres_changes", {event:"INSERT", schema:"public", table:"bascula_historial"}, pronto)
+  .on("postgres_changes", {event:"*", schema:"public", table:"notas_detalle"}, pronto)
+  .subscribe();
+setInterval(cargar, 60e3); // respaldo y para pasar "esperando" → "sin nota"
+cargar();
+</script>
+</body>
+</html>
