@@ -95,7 +95,7 @@
     <div class="kpi rojo"><b id="k-no">—</b><span>Sin nota · <span id="k-nokg">0</span> kg</span></div>
     <div class="kpi"><b id="k-man">—</b><span>Renglones de nota sin pesada</span></div>
   </div>
-  <p class="nota">Se guarda cada peso que se quedó quieto 1.5 s o más. Si se fue apilando producto, solo cuenta el último peso (los anteriores salen como “parcial”). Toca un renglón para ver qué se capturó en notas alrededor de esa hora.</p>
+  <p class="nota">La báscula marca peso bruto; al comparar se acepta que en la nota se hayan restado 32–33 kg de tara por pesada. Si se fue apilando producto, solo cuenta el último peso (los anteriores salen como “parcial”). Toca un renglón para ver qué se capturó en notas alrededor de esa hora.</p>
 
   <div class="card"><table>
     <thead id="thead"></thead>
@@ -115,6 +115,17 @@ const ANTES_MIN = 20;      // la pesada puede ser hasta 20 min antes del rengló
 const DESPUES_MIN = 3;     // o hasta 3 min después
 const TOL = kg => Math.max(1.0, kg * 0.02);   // diferencia aceptada (redondeo a kg enteros)
 const ESPERA_MIN = 10;     // una pesada reciente se marca "esperando nota" antes de "sin nota"
+// La báscula no tiene tara: en la nota se resta a mano el recipiente (32 a 33 kg por pesada)
+const TARA_MIN = 32, TARA_MAX = 33;
+
+// ¿Cuadra el peso de báscula (o la suma de n pesadas) con lo que dice la nota?
+// Devuelve la tara que se restó (0 si no se restó nada) o null si no cuadra.
+function cuadra(sumaPeso, n, cant){
+  const tol = TOL(cant), diff = sumaPeso - cant;
+  if (Math.abs(diff) <= tol) return 0;
+  if (diff >= n*TARA_MIN - tol && diff <= n*TARA_MAX + tol) return diff;
+  return null;
+}
 
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const $ = id => document.getElementById(id);
@@ -167,12 +178,14 @@ function emparejar(diaA, diaB){
 
   // 2) un renglón de nota = una pesada (la más cercana en tiempo)
   detalles.forEach(d => {
-    let mejor = null;
+    let mejor = null, taraMejor = 0;
     finales.forEach(p => {
-      if (p.match || !enVentana(p,d) || Math.abs(p.peso - d.cantidad) > TOL(d.cantidad)) return;
-      if (!mejor || Math.abs(p.t - d.t) < Math.abs(mejor.t - d.t)) mejor = p;
+      if (p.match || !enVentana(p,d)) return;
+      const tara = cuadra(p.peso, 1, d.cantidad);
+      if (tara === null) return;
+      if (!mejor || Math.abs(p.t - d.t) < Math.abs(mejor.t - d.t)){ mejor = p; taraMejor = tara; }
     });
-    if (mejor){ mejor.match = [d]; d.match = [mejor]; }
+    if (mejor){ mejor.match = [d]; d.match = [mejor]; d.tara = taraMejor; }
   });
 
   // 3) un renglón de nota = suma de varias pesadas seguidas (2 a 8)
@@ -183,14 +196,16 @@ function emparejar(diaA, diaB){
       let s = 0;
       for (let j = i; j < libres.length && j < i + 8; j++){
         s += libres[j].peso;
-        if (j > i && Math.abs(s - d.cantidad) <= TOL(d.cantidad)){
+        const n = j - i + 1;
+        const tara = n > 1 ? cuadra(s, n, d.cantidad) : null;
+        if (tara !== null){
           const dist = Math.abs(libres[j].t - d.t);
-          if (!mejor || dist < mejor.dist) mejor = {ps: libres.slice(i, j+1), dist};
+          if (!mejor || dist < mejor.dist) mejor = {ps: libres.slice(i, j+1), dist, tara};
         }
-        if (s > d.cantidad + TOL(d.cantidad)) break;
+        if (s > d.cantidad + n*TARA_MAX + TOL(d.cantidad)) break;
       }
     }
-    if (mejor){ mejor.ps.forEach(p => p.match = [d]); d.match = mejor.ps; }
+    if (mejor){ mejor.ps.forEach(p => p.match = [d]); d.match = mejor.ps; d.tara = mejor.tara; }
   });
 
   // 4) estados
@@ -198,6 +213,7 @@ function emparejar(diaA, diaB){
   pesadas.forEach(p => {
     if (!p.final) p.estado = "parcial";
     else if (p.match) p.estado = "ok";
+    else if (p.peso >= TARA_MIN - 1 && p.peso <= TARA_MAX + 1) p.estado = "tara";  // recipiente vacío
     else p.estado = (ahora - p.t < ESPERA_MIN*60e3) ? "esperando" : "sinnota";
   });
   // solo cuentan las del día elegido
@@ -211,13 +227,18 @@ function pasaFiltros(t, kg){
   if (de && t < +new Date(`${f}T${de}:00-06:00`)) return false;
   if (ha && t > +new Date(`${f}T${ha}:59-06:00`)) return false;
   const q = parseFloat(($("kg").value || "").replace(",", "."));
-  if (!isNaN(q) && Math.abs(kg - q) > Math.max(0.5, q*0.02)) return false;
+  if (!isNaN(q)){
+    const tol = Math.max(1, q*0.02);
+    const directo = Math.abs(kg - q) <= tol;                                   // busca el peso tal cual
+    const conTara = kg - q >= TARA_MIN - tol && kg - q <= TARA_MAX + tol;      // o el neto de la nota
+    if (!directo && !conTara) return false;
+  }
   return true;
 }
 
 function pintar(){
-  const finales = pesadas.filter(p => p.final);
-  const sin = finales.filter(p => p.estado === "sinnota");
+  const finales = pesadas.filter(p => p.final && p.estado !== "tara");
+  const sin =finales.filter(p => p.estado === "sinnota");
   const manuales = detalles.filter(d => !d.match);
   $("k-pes").textContent = finales.length;
   $("k-ok").textContent = finales.filter(p => p.estado === "ok").length;
@@ -249,15 +270,18 @@ function pintar(){
     return;
   }
   const tags = {ok:'<span class="tag t-ok">En nota</span>', sinnota:'<span class="tag t-no">Sin nota</span>',
-    esperando:'<span class="tag t-esp">Esperando nota</span>', parcial:'<span class="tag t-par">Parcial</span>'};
+    esperando:'<span class="tag t-esp">Esperando nota</span>', parcial:'<span class="tag t-par">Parcial</span>',
+    tara:'<span class="tag t-par">Tina vacía</span>'};
   body.innerHTML = rows.map(p => {
     let enNota = "";
     if (p.match){
       const d = p.match[0];
-      const suma = d.match.length > 1 ? ` <small>(suma de ${d.match.length} pesadas = ${kgf(d.cantidad)} kg)</small>` : "";
-      enNota = `<div class="det">${esc(d.cliente)} · ${esc(d.producto)}<br><small>${esc(d.folio)} · ${kgf(d.cantidad)} kg · ${hhmm(d.t)}</small>${suma}</div>`;
+      const suma = d.match.length > 1 ? ` <small>· suma de ${d.match.length} pesadas</small>` : "";
+      const tara = d.tara ? ` <small>· se restaron ${kgf(d.tara)} kg de tara</small>` : "";
+      enNota = `<div class="det">${esc(d.cliente)} · ${esc(d.producto)}<br><small>${esc(d.folio)} · ${kgf(d.cantidad)} kg en nota · ${hhmm(d.t)}</small>${suma}${tara}</div>`;
     } else if (p.estado === "parcial") enNota = `<small class="det">Se le siguió agregando producto</small>`;
-    const cls = p.estado === "parcial" ? "parcial" : p.estado === "sinnota" ? "sinnota" : "";
+    else if (p.estado === "tara") enNota = `<small class="det">Parece el recipiente vacío (${TARA_MIN}–${TARA_MAX} kg)</small>`;
+    const cls = (p.estado === "parcial" || p.estado === "tara") ? "parcial" : p.estado === "sinnota" ? "sinnota" : "";
     const fila = `<tr class="${cls}" data-id="${p.id}">
       <td class="num">${hhmmss(p.t)}</td>
       <td class="num peso">${kgf(p.peso)} kg</td>
