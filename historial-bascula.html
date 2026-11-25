@@ -1,4 +1,4 @@
-<!doctype html>
+¿<!doctype html>
 <html lang="es">
 <head>
 <meta charset="utf-8">
@@ -69,7 +69,7 @@
 <body>
 <header><div class="wrap top">
   <div class="logo">⚖</div>
-  <h1>Historial de Báscula<small>Pesos estables de la Torrey vs. notas a crédito</small></h1>
+  <h1>Historial de Báscula<small>Pesos estables de la Torrey · Crédito, Mostrador y Hoja de Viaje</small></h1>
   <span class="live" id="live"><i></i><span>Conectando…</span></span>
   <a href="./" id="volver">← Central</a>
 </div></header>
@@ -83,19 +83,19 @@
     <div class="f"><label>Mostrar</label>
       <div class="seg" id="filtro">
         <button type="button" data-f="todas" class="act">Todas</button>
-        <button type="button" data-f="sinnota">Sin nota</button>
-        <button type="button" data-f="manual">Nota sin báscula</button>
+        <button type="button" data-f="credito">Crédito</button><button type="button" data-f="mostrador">Mostrador</button><button type="button" data-f="viaje">Hoja de viaje</button><button type="button" data-f="sinnota">Sin registro</button><button type="button" data-f="ambiguo">Por revisar</button>
+        <button type="button" data-f="manual">Registro sin coincidencia</button>
       </div>
     </div>
   </div>
 
   <div class="kpis">
     <div class="kpi"><b id="k-pes">—</b><span>Pesadas en báscula</span></div>
-    <div class="kpi"><b id="k-ok">—</b><span>Encontradas en nota</span></div>
-    <div class="kpi rojo"><b id="k-no">—</b><span>Sin nota · <span id="k-nokg">0</span> kg</span></div>
-    <div class="kpi"><b id="k-man">—</b><span>Renglones de nota sin pesada</span></div>
+    <div class="kpi"><b id="k-ok">—</b><span>Con coincidencia probable</span></div>
+    <div class="kpi rojo"><b id="k-no">—</b><span>Sin registro · <span id="k-nokg">0</span> kg</span></div>
+    <div class="kpi"><b id="k-man">—</b><span>Registros sin coincidencia</span></div>
   </div>
-  <p class="nota">La báscula marca peso bruto; al comparar se acepta que en la nota se hayan restado 32–33 kg de tara por pesada. Si se fue apilando producto, solo cuenta el último peso (los anteriores salen como “parcial”). Toca un renglón para ver qué se capturó en notas alrededor de esa hora.</p>
+  <div class="kpis" id="modulos"></div><p class="nota" id="fuentes"></p><p class="nota">Las relaciones son coincidencias por hora y peso, no vínculos confirmados. Si hay varias posibilidades cercanas se marcan para revisión. La báscula marca peso bruto; al comparar se acepta que en la nota se hayan restado 32–33 kg de tara por pesada. Si se fue apilando producto, solo cuenta el último peso (los anteriores salen como “parcial”). Toca un renglón para ver qué se capturó en los módulos alrededor de esa hora.</p>
 
   <div class="card"><table>
     <thead id="thead"></thead>
@@ -128,6 +128,10 @@ function cuadra(sumaPeso, n, cant){
 }
 
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const sm = supabase.createClient("https://eqynjddcosvdqjzztznn.supabase.co", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVxeW5qZGRjb3N2ZHFqenp0em5uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYxMzYwMzIsImV4cCI6MjA3MTcxMjAzMn0.Q51wsGelUvxRfqsMYRY5JduCGyZ7s6AzOhqsRf3kOhk", {auth:{storageKey:"historial-mostrador"}});
+const sv = supabase.createClient("https://rcegikeiaxptolrduguc.supabase.co", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjZWdpa2VpYXhwdG9scmR1Z3VjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU2NTMyMDcsImV4cCI6MjA3MTIyOTIwN30.jbPM9F977zeITEmFA_xvVU6SCxlWWVCi3Dx7ZhFfTp8", {auth:{storageKey:"historial-viaje"}});
+const nombres = {credito:"Nota a crédito", mostrador:"Mostrador", viaje:"Hoja de viaje"};
+let incompleto = false, cargaVersion = 0;
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const hhmmss = d => new Date(d).toLocaleTimeString("es-MX",{timeZone:TZ,hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false});
@@ -143,26 +147,37 @@ let pesadas = [], detalles = [], filtro = "todas", abierto = null;
 try { const p = new URLSearchParams(location.search); $("fecha").value = p.get("fecha") || hoyMX(); } catch(e){ $("fecha").value = hoyMX(); }
 
 async function cargar(){
+  const version = ++cargaVersion;
   const f = $("fecha").value || hoyMX();
   const [a,b] = rangoDia(f);
   const a2 = new Date(a.getTime() - 30*60e3), b2 = new Date(b.getTime() + 30*60e3);
-  const [r1, r2] = await Promise.all([
-    sb.from("bascula_historial").select("id,peso,estable_desde,duracion_s,tras_vacio")
-      .eq("bascula", BASCULA).gte("estable_desde", a2.toISOString()).lt("estable_desde", b2.toISOString())
-      .order("estable_desde").limit(5000),
-    sb.from("notas_detalle").select("id,producto,cantidad,piezas,created_at,notas_credito(folio,clientes(nombre))")
-      .gte("created_at", a2.toISOString()).lt("created_at", b2.toISOString())
-      .order("created_at").limit(5000)
-  ]);
-  const ok = !r1.error && !r2.error;
-  $("live").className = "live" + (ok ? " on" : "");
-  $("live").lastElementChild.textContent = ok ? "Actualizado " + hhmm(new Date()) : "Sin conexión";
-  if (!ok) return;
-  pesadas = r1.data.map(p => ({...p, t: +new Date(p.estable_desde), peso: +p.peso})).sort((x,y) => x.t - y.t);
-  detalles = r2.data.map(d => ({...d, t: +new Date(d.created_at), cantidad: +d.cantidad,
-    cliente: d.notas_credito?.clientes?.nombre || "(sin cliente)", folio: d.notas_credito?.folio || ""})).sort((x,y) => x.t - y.t);
-  emparejar(a.getTime(), b.getTime());
-  pintar();
+  const rango = (q,c) => q.gte(c,a2.toISOString()).lt(c,b2.toISOString()).order(c).limit(1000);
+  const queries = [
+    rango(sb.from("bascula_historial").select("id,peso,estable_desde,duracion_s,tras_vacio").eq("bascula",BASCULA),"estable_desde"),
+    rango(sb.from("notas_detalle").select("id,producto,cantidad,piezas,created_at,notas_credito(folio,clientes(nombre))"),"created_at"),
+    rango(sm.from("mostrador_enviados").select("id,producto,kilos,piezas,created_at,origen"),"created_at"),
+    rango(sm.from("mostrador_devueltos").select("id,producto,kilos,piezas,created_at"),"created_at"),
+    rango(sm.from("ventas_items").select("id,venta_id,producto,kg,piezas,created_at"),"created_at"),
+    sv.from("hoja_viaje_items").select("id,fecha,producto,kg,pzas,mark,mark_nombre,pesado_at,created_at,deleted").gte("fecha", new Date(a.getTime()-86400000).toISOString().slice(0,10)).lte("fecha",new Date(a.getTime()+86400000).toISOString().slice(0,10)).order("created_at").limit(1000)
+  ];
+  const rs = await Promise.all(queries.map(q=>Promise.resolve(q).catch(error=>({error}))));
+  if(version!==cargaVersion)return;
+  const labels=["Báscula","Crédito","Envíos mostrador","Devoluciones mostrador","Ventas mostrador","Hoja de viaje"];
+  const errores=rs.flatMap((r,i)=>r.error||r.data?.length>=1000?[labels[i]]:[]);
+  incompleto=errores.length>0;
+  $("fuentes").textContent=incompleto?"Consulta incompleta: "+errores.join(", ")+". No se consideran definitivas las ausencias.":"Fuentes consultadas: crédito, envíos, devoluciones y ventas de mostrador, hoja de viaje. Mostrador usa hora de captura; viaje usa hora de pesada cuando existe.";
+  $("live").className="live"+(incompleto?"":" on");
+  $("live").lastElementChild.textContent=incompleto?"Consulta incompleta":"Actualizado "+hhmm(new Date());
+  const data=i=>rs[i].data||[];
+  pesadas=data(0).map(p=>({...p,t:+new Date(p.estable_desde),peso:+p.peso})).sort((x,y)=>x.t-y.t);
+  const norm=(d,modulo,cantidad,cliente,folio,fecha,piezas)=>({...d,id:modulo+":"+d.id,modulo,cantidad:+cantidad,cliente,folio,t:+new Date(fecha),piezas});
+  detalles=[...data(1).map(d=>norm(d,"credito",d.cantidad,d.notas_credito?.clientes?.nombre||"(sin cliente)",d.notas_credito?.folio||"",d.created_at,d.piezas)),
+    ...data(2).map(d=>norm(d,"mostrador",d.kilos,"Envío a mostrador",d.origen||"",d.created_at,d.piezas)),
+    ...data(3).map(d=>norm(d,"mostrador",d.kilos,"Devolución mostrador","",d.created_at,d.piezas)),
+    ...data(4).map(d=>norm(d,"mostrador",d.kg,"Venta mostrador",d.venta_id,d.created_at,d.piezas)),
+    ...data(5).filter(d=>!d.deleted).map(d=>norm(d,"viaje",d.kg,d.mark_nombre||d.mark||"Sin marca",d.fecha,d.pesado_at||d.created_at,d.pzas))
+  ].filter(d=>d.cantidad>0&&d.t>=+a2&&d.t<+b2).sort((x,y)=>x.t-y.t);
+  emparejar(+a,+b); pintar();
 }
 
 function emparejar(diaA, diaB){
@@ -176,11 +191,14 @@ function emparejar(diaA, diaB){
   const finales = pesadas.filter(p => p.final);
   const enVentana = (p, d) => p.t >= d.t - ANTES_MIN*60e3 && p.t <= d.t + DESPUES_MIN*60e3;
 
+  // Mark cross-module or same-module competing candidates for review.
+  finales.forEach(p=>{p.candidatos=detalles.filter(d=>enVentana(p,d)&&cuadra(p.peso,1,d.cantidad)!==null);p.ambiguo=p.candidatos.length>1;});
+  detalles.forEach(d=>{const ps=finales.filter(p=>p.candidatos.includes(d));if(ps.length>1)ps.forEach(p=>p.ambiguo=true);});
   // 2) un renglón de nota = una pesada (la más cercana en tiempo)
   detalles.forEach(d => {
     let mejor = null, taraMejor = 0;
     finales.forEach(p => {
-      if (p.match || !enVentana(p,d)) return;
+      if (p.match || p.ambiguo || !enVentana(p,d)) return;
       const tara = cuadra(p.peso, 1, d.cantidad);
       if (tara === null) return;
       if (!mejor || Math.abs(p.t - d.t) < Math.abs(mejor.t - d.t)){ mejor = p; taraMejor = tara; }
@@ -190,7 +208,7 @@ function emparejar(diaA, diaB){
 
   // 3) un renglón de nota = suma de varias pesadas seguidas (2 a 8)
   detalles.filter(d => !d.match).forEach(d => {
-    const libres = finales.filter(p => !p.match && enVentana(p,d));
+    const libres = finales.filter(p => !p.match && !p.ambiguo && !p.candidatos.length && enVentana(p,d));
     let mejor = null;
     for (let i = 0; i < libres.length; i++){
       let s = 0;
@@ -213,8 +231,9 @@ function emparejar(diaA, diaB){
   pesadas.forEach(p => {
     if (!p.final) p.estado = "parcial";
     else if (p.match) p.estado = "ok";
+    else if (p.ambiguo) p.estado = "ambiguo";
     else if (p.peso >= TARA_MIN - 1 && p.peso <= TARA_MAX + 1) p.estado = "tara";  // recipiente vacío
-    else p.estado = (ahora - p.t < ESPERA_MIN*60e3) ? "esperando" : "sinnota";
+    else p.estado = (ahora - p.t < ESPERA_MIN*60e3) ? "esperando" : incompleto ? "incompleto" : "sinnota";
   });
   // solo cuentan las del día elegido
   pesadas = pesadas.filter(p => p.t >= diaA && p.t < diaB);
@@ -246,22 +265,25 @@ function pintar(){
   $("k-nokg").textContent = kgf(sin.reduce((s,p) => s + p.peso, 0));
   $("k-man").textContent = manuales.length;
 
+  $("modulos").innerHTML=Object.entries(nombres).map(([k,v])=>`<div class="kpi"><b>${finales.filter(p=>p.match?.[0]?.modulo===k).length}</b><span>${v}</span></div>`).join("")+`<div class="kpi"><b>${finales.filter(p=>p.estado==="ambiguo").length}</b><span>Por revisar</span></div>`;
   const body = $("tbody");
   if (filtro === "manual"){
-    $("thead").innerHTML = `<tr><th>Hora</th><th class="num">Kg en nota</th><th>Cliente · producto</th><th>Folio</th></tr>`;
+    $("thead").innerHTML = `<tr><th>Hora</th><th class="num">Kg registrados</th><th>Módulo · producto</th><th>Folio</th></tr>`;
     const rows = manuales.filter(d => pasaFiltros(d.t, d.cantidad)).reverse();
     body.innerHTML = rows.length ? rows.map(d => `<tr>
         <td class="num">${hhmmss(d.t)}</td>
         <td class="num peso">${kgf(d.cantidad)}</td>
-        <td class="det">${esc(d.cliente)}<br><small>${esc(d.producto)}${d.piezas ? ` · ${d.piezas} pzas` : ""}</small></td>
+        <td class="det">${esc(nombres[d.modulo])} · ${esc(d.cliente)}<br><small>${esc(d.producto)}${d.piezas ? ` · ${d.piezas} pzas` : ""}</small></td>
         <td class="num"><span class="tag t-man">${esc(d.folio)}</span></td></tr>`).join("")
-      : `<tr><td class="vacio" colspan="4">Todos los renglones de nota de este día tienen su pesada en báscula.</td></tr>`;
+      : `<tr><td class="vacio" colspan="4">No hay registros sin coincidencia en los datos consultados.</td></tr>`;
     return;
   }
 
-  $("thead").innerHTML = `<tr><th>Hora</th><th class="num">Peso</th><th>Estado</th><th>En nota</th><th class="h-dur num">Quieto</th></tr>`;
+  $("thead").innerHTML = `<tr><th>Hora</th><th class="num">Peso</th><th>Estado</th><th>Relación</th><th class="h-dur num">Quieto</th></tr>`;
   let rows = pesadas.filter(p => pasaFiltros(p.t, p.peso));
   if (filtro === "sinnota") rows = rows.filter(p => p.estado === "sinnota" || p.estado === "esperando");
+  if(nombres[filtro]) rows=rows.filter(p=>p.match?.[0]?.modulo===filtro);
+  if(filtro==="ambiguo") rows=rows.filter(p=>p.estado==="ambiguo");
   rows = rows.slice().reverse();
   if (!rows.length){
     const hayDatos = pesadas.length > 0;
@@ -269,8 +291,8 @@ function pintar(){
       "No hay pesadas guardadas este día.<br>Revisa que <b>bascula_historial.py</b> esté abierto en la compu de la báscula."}</td></tr>`;
     return;
   }
-  const tags = {ok:'<span class="tag t-ok">En nota</span>', sinnota:'<span class="tag t-no">Sin nota</span>',
-    esperando:'<span class="tag t-esp">Esperando nota</span>', parcial:'<span class="tag t-par">Parcial</span>',
+  const tags = {ambiguo:'<span class="tag t-esp">Por revisar</span>', incompleto:'<span class="tag t-esp">Consulta incompleta</span>',ok:'<span class="tag t-ok">Coincidencia</span>', sinnota:'<span class="tag t-no">Sin registro</span>',
+    esperando:'<span class="tag t-esp">Esperando registro</span>', parcial:'<span class="tag t-par">Parcial</span>',
     tara:'<span class="tag t-par">Tina vacía</span>'};
   body.innerHTML = rows.map(p => {
     let enNota = "";
@@ -278,8 +300,9 @@ function pintar(){
       const d = p.match[0];
       const suma = d.match.length > 1 ? ` <small>· suma de ${d.match.length} pesadas</small>` : "";
       const tara = d.tara ? ` <small>· se restaron ${kgf(d.tara)} kg de tara</small>` : "";
-      enNota = `<div class="det">${esc(d.cliente)} · ${esc(d.producto)}<br><small>${esc(d.folio)} · ${kgf(d.cantidad)} kg en nota · ${hhmm(d.t)}</small>${suma}${tara}</div>`;
-    } else if (p.estado === "parcial") enNota = `<small class="det">Se le siguió agregando producto</small>`;
+      enNota = `<div class="det">${esc(nombres[d.modulo])} · ${esc(d.cliente)} · ${esc(d.producto)}<br><small>${esc(d.folio)} · ${kgf(d.cantidad)} kg registrados · ${hhmm(d.t)}</small>${suma}${tara}</div>`;
+    } else if (p.estado === "ambiguo") enNota = `<small>${p.candidatos.length} posibles registros · toca para revisar</small>`;
+    else if (p.estado === "parcial") enNota = `<small class="det">Se le siguió agregando producto</small>`;
     else if (p.estado === "tara") enNota = `<small class="det">Parece el recipiente vacío (${TARA_MIN}–${TARA_MAX} kg)</small>`;
     const cls = (p.estado === "parcial" || p.estado === "tara") ? "parcial" : p.estado === "sinnota" ? "sinnota" : "";
     const fila = `<tr class="${cls}" data-id="${p.id}">
@@ -298,10 +321,10 @@ function pintar(){
 function cercanas(p){
   const ds = detalles.filter(d => Math.abs(d.t - p.t) <= 15*60e3);
   const filas = ds.length ? ds.map(d => `<tr>
-      <td class="num">${hhmmss(d.t)}</td><td>${esc(d.cliente)}</td><td>${esc(d.producto)}</td>
+      <td class="num">${hhmmss(d.t)}</td><td>${esc(nombres[d.modulo])} · ${esc(d.cliente)}</td><td>${esc(d.producto)}</td>
       <td class="num">${kgf(d.cantidad)} kg${d.piezas ? ` · ${d.piezas} pzas` : ""}</td><td class="num">${esc(d.folio)}</td></tr>`).join("")
-    : `<tr><td colspan="5">No se capturó nada en notas 15 minutos antes ni después.</td></tr>`;
-  return `<tr class="cerca"><td colspan="5"><h4>Capturado en notas ±15 min de ${hhmm(p.t)}</h4>
+    : `<tr><td colspan="5">No se encontraron registros 15 minutos antes ni después.</td></tr>`;
+  return `<tr class="cerca"><td colspan="5"><h4>Capturado en módulos ±15 min de ${hhmm(p.t)}</h4>
     <table class="mini">${filas}</table></td></tr>`;
 }
 
@@ -319,6 +342,8 @@ sb.channel("historial-bascula")
   .on("postgres_changes", {event:"INSERT", schema:"public", table:"bascula_historial"}, pronto)
   .on("postgres_changes", {event:"*", schema:"public", table:"notas_detalle"}, pronto)
   .subscribe();
+sm.channel("historial-mostrador").on("postgres_changes",{event:"*",schema:"public",table:"mostrador_enviados"},pronto).on("postgres_changes",{event:"*",schema:"public",table:"mostrador_devueltos"},pronto).on("postgres_changes",{event:"*",schema:"public",table:"ventas_items"},pronto).subscribe();
+sv.channel("historial-viaje").on("postgres_changes",{event:"*",schema:"public",table:"hoja_viaje_items"},pronto).subscribe();
 setInterval(cargar, 60e3); // respaldo y para pasar "esperando" → "sin nota"
 cargar();
 </script>
